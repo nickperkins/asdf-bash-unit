@@ -102,4 +102,7 @@ Thumbs.db
 .github/prompts/kodik*.md
 .github/prompts/generate-*.prompt.md
 
+# Test artifacts
+tests/vendor/
+
 # End of file

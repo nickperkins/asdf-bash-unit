@@ -31,16 +31,20 @@ get_releases_url() {
 
 clean_version() {
   # Normalize a version string:
-  #  - Trim surrounding whitespace
-  #  - Remove leading 'v' or 'V'
-  #  - Strip trailing newline
+  #  - Trim surrounding whitespace (spaces, tabs, newlines)
+  #  - Remove a single leading 'v' or 'V' if present
   #  - Echo cleaned value (no extra whitespace)
   # Usage: clean_version "v1.2.3" -> outputs 1.2.3
-  local raw="${1:-}" cleaned
-  # Trim whitespace using parameter expansion via printf
-  # shellcheck disable=SC2001
-  cleaned=$(printf '%s' "$raw" | sed -E 's/^ +//; s/ +$//; s/^[vV]//')
-  printf '%s' "$cleaned"
+  local raw="${1:-}" v
+  # Trim leading/trailing whitespace including tabs/newlines
+  v="$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  # Strip single leading v/V
+  case "$v" in
+    [vV]*)
+      v="${v#?}"
+      ;;
+  esac
+  printf '%s' "$v"
 }
 
 check_network() {
@@ -48,7 +52,7 @@ check_network() {
   # Uses a fast HEAD request and short timeout.
   local url
   url=$(get_releases_url)
-  if curl -s -I --max-time 5 "$url" >/dev/null 2>&1; then
+  if curl -s -I --max-time 5 "$url" > /dev/null 2>&1; then
     return 0
   fi
   return 1

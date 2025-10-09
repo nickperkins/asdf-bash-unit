@@ -23,6 +23,12 @@ if ! check_network; then
   exit 2
 fi
 
+# Consolidated cleanup trap for all temp files used in this script
+cleanup() {
+  rm -f "${response_file:-}" "${http_code_file:-}" "${padded_tmp:-}"
+}
+trap cleanup EXIT
+
 releases_url=$(get_releases_url)
 
 AUTH_HEADER=()
@@ -30,9 +36,9 @@ if [ -n "${GITHUB_API_TOKEN:-}" ]; then
   AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_API_TOKEN")
 fi
 
-response_file="$(mktemp)"; trap 'rm -f "$response_file"' EXIT
-http_code_file="$(mktemp)"; trap 'rm -f "$response_file" "$http_code_file"' EXIT
-if ! curl -sSL -w '%{http_code}' "${AUTH_HEADER[@]}" "$releases_url" -o "$response_file" >"$http_code_file" 2>/dev/null; then
+response_file="$(mktemp)"
+http_code_file="$(mktemp)"
+if ! curl -sSL -w '%{http_code}' ${AUTH_HEADER:+"${AUTH_HEADER[@]}"} "$releases_url" -o "$response_file" > "$http_code_file" 2> /dev/null; then
   log_error "curl request failed fetching releases"
   exit 2
 fi
@@ -49,7 +55,7 @@ fi
 
 # Extract tag_name entries. Handle pretty or minified JSON. Avoid external jq dependency.
 raw_tags=$(grep -o '"tag_name"[^
-]*' "$response_file" 2>/dev/null | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/' || true)
+]*' "$response_file" 2> /dev/null | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/' || true)
 
 if [ -z "$raw_tags" ]; then
   raw_tags=$(tr '{' '\n' < "$response_file" | grep 'tag_name' | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/' || true)
@@ -71,10 +77,10 @@ done
 # Sort versions (newest last) without relying on sort -V
 if [ ${#cleaned_versions[@]} -gt 0 ]; then
   # Pad each numeric component to 5 digits for lexical sort reliability
-  padded_tmp="$(mktemp)"; trap 'rm -f "$padded_tmp"' EXIT
+  padded_tmp="$(mktemp)"
   for v in "${cleaned_versions[@]}"; do
-    IFS='.' read -r a b c <<<"$v"
-    printf '%05d.%05d.%05d %s\n' "$a" "$b" "$c" "$v" >>"$padded_tmp"
+    IFS='.' read -r a b c <<< "$v"
+    printf '%05d.%05d.%05d %s\n' "$a" "$b" "$c" "$v" >> "$padded_tmp"
   done
   # Lexically sort by padded numeric components; newest will be last due to ascending order
   sorted_versions=$(LC_ALL=C sort "$padded_tmp" | cut -d' ' -f2)
@@ -86,4 +92,4 @@ if [ ${#cleaned_versions[@]} -gt 0 ]; then
   done
   printf '%s' "$out"
 fi
-echo ""  # newline only
+echo "" # newline only

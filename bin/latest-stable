@@ -19,6 +19,9 @@ if [ -f "$ROOT_DIR/lib/utils.sh" ]; then
   . "$ROOT_DIR/lib/utils.sh"
 fi
 
+# Accept optional filter argument for asdf compatibility (ignored)
+filter="${1:-}"
+
 if ! check_network; then
   log_error "Network connectivity check failed"
   exit 2
@@ -32,7 +35,8 @@ if [ -n "${GITHUB_API_TOKEN:-}" ]; then
   CURL_OPTS+=(-H "Authorization: Bearer $GITHUB_API_TOKEN")
 fi
 
-response_file="$(mktemp)"; trap 'rm -f "$response_file"' EXIT
+response_file="$(mktemp)"
+trap 'rm -f "$response_file"' EXIT
 
 if ! curl "${CURL_OPTS[@]}" "$LATEST_URL" -o "$response_file"; then
   log_error "Failed to fetch latest release data"

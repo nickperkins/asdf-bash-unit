@@ -27,6 +27,13 @@ if [ -z "$INSTALL_DIR" ]; then
   exit 3
 fi
 
+# Validate install type: support only version installs
+INSTALL_TYPE="${ASDF_INSTALL_TYPE:-version}"
+if [ "$INSTALL_TYPE" = "ref" ]; then
+  log_error "ref installs unsupported"
+  exit 3
+fi
+
 TARGET_BIN_DIR="$INSTALL_DIR/bin"
 
 if ! mkdir -p "$TARGET_BIN_DIR"; then
@@ -35,26 +42,59 @@ if ! mkdir -p "$TARGET_BIN_DIR"; then
 fi
 
 DOWNLOAD_DIR="${ASDF_DOWNLOAD_PATH:-}"
-if [ -z "$DOWNLOAD_DIR" ]; then
-  log_error "ASDF_DOWNLOAD_PATH is not set"
-  exit 3
-fi
-
-SOURCE_FILE="$DOWNLOAD_DIR/bash_unit"
 TARGET_FILE="$TARGET_BIN_DIR/bash_unit"
 
-if [ ! -f "$SOURCE_FILE" ]; then
-  log_error "Source file missing: $SOURCE_FILE"
-  exit 1
+if [ -n "$DOWNLOAD_DIR" ]; then
+  # Primary path: expect previously downloaded artifact
+  SOURCE_FILE="$DOWNLOAD_DIR/bash_unit"
+  if [ ! -f "$SOURCE_FILE" ]; then
+    log_error "Source file missing: $SOURCE_FILE"
+    exit 1
+  fi
+  COPY_SOURCE="$SOURCE_FILE"
+else
+  # Legacy fallback: download directly (per asdf plugin guide)
+  VERSION_RAW="${ASDF_INSTALL_VERSION:-}"
+  if [ -z "$VERSION_RAW" ]; then
+    log_error "ASDF_INSTALL_VERSION is not set"
+    exit 3
+  fi
+
+  CLEAN_VERSION="$(clean_version "$VERSION_RAW")"
+  if ! validate_version_format "$CLEAN_VERSION"; then
+    log_error "Invalid version format after cleaning: $VERSION_RAW -> $CLEAN_VERSION"
+    exit 3
+  fi
+
+  URL="https://raw.githubusercontent.com/bash-unit/bash_unit/v${CLEAN_VERSION}/bash_unit"
+
+  # Download to a temp file first; keep within install bin directory for atomic move
+  TMP_FILE="$TARGET_BIN_DIR/.bash_unit.tmp.$$"
+  if ! curl -fsSL "$URL" -o "$TMP_FILE"; then
+    rm -f "$TMP_FILE" || true
+    log_error "Failed to download $URL"
+    exit 2
+  fi
+
+  # Validate shebang
+  if ! head -n1 "$TMP_FILE" | grep -Eq '^#!(/usr/bin/env bash|/bin/bash)'; then
+    rm -f "$TMP_FILE" || true
+    log_error "Downloaded file missing valid bash shebang"
+    exit 1
+  fi
+
+  COPY_SOURCE="$TMP_FILE"
 fi
 
-if ! cp "$SOURCE_FILE" "$TARGET_FILE"; then
-  log_error "Failed to copy $SOURCE_FILE to $TARGET_FILE"
+if ! cp "$COPY_SOURCE" "$TARGET_FILE"; then
+  log_error "Failed to copy $COPY_SOURCE to $TARGET_FILE"
+  [ -n "${TMP_FILE:-}" ] && rm -f "$TMP_FILE" || true
   exit 1
 fi
 
 if ! chmod 755 "$TARGET_FILE"; then
   log_error "Failed to set executable permissions on $TARGET_FILE"
+  [ -n "${TMP_FILE:-}" ] && rm -f "$TMP_FILE" || true
   exit 1
 fi
 
@@ -68,4 +108,9 @@ if [ ! -x "$TARGET_FILE" ]; then
   exit 1
 fi
 
-echo ""  # final placeholder; successful installation
+# Clean up temporary file if legacy path used
+if [ -n "${TMP_FILE:-}" ] && [ -f "$TMP_FILE" ]; then
+  rm -f "$TMP_FILE" || true
+fi
+
+# success (no stdout on success)
