@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Provides a concise overview of bash_unit and this ASDF plugin.
+
+cat <<'EOF'
+bash_unit is a lightweight unit testing framework for Bash that lets you:
+ - Organize tests as simple shell functions
+ - Use expressive assertions for readability
+ - Run focused or full test suites quickly
+ - Keep dependencies minimal (pure Bash + core utils)
+
+This ASDF plugin installs specific versions of bash_unit and exposes helper
+scripts to integrate with ASDF workflows (list-all, download, install, latest-stable).
+EOF

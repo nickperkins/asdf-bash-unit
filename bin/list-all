@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+# ASDF required script: list-all
+# Refactored to leverage shared utility functions (Task 2.6):
+#  - get_releases_url
+#  - check_network
+#  - log_error
+#  - clean_version
+#  - validate_version_format
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=../lib/utils.sh
+if [ -f "$ROOT_DIR/lib/utils.sh" ]; then
+  . "$ROOT_DIR/lib/utils.sh"
+fi
+
+if ! check_network; then
+  log_error "Network connectivity to GitHub API failed"
+  exit 2
+fi
+
+releases_url=$(get_releases_url)
+
+AUTH_HEADER=()
+if [ -n "${GITHUB_API_TOKEN:-}" ]; then
+  AUTH_HEADER=(-H "Authorization: Bearer $GITHUB_API_TOKEN")
+fi
+
+response_file="$(mktemp)"; trap 'rm -f "$response_file"' EXIT
+http_code_file="$(mktemp)"; trap 'rm -f "$response_file" "$http_code_file"' EXIT
+if ! curl -sSL -w '%{http_code}' "${AUTH_HEADER[@]}" "$releases_url" -o "$response_file" >"$http_code_file" 2>/dev/null; then
+  log_error "curl request failed fetching releases"
+  exit 2
+fi
+
+http_code=$(cat "$http_code_file")
+if ! echo "$http_code" | grep -Eq '^[0-9]{3}$'; then
+  log_error "Missing or invalid HTTP status code from releases response"
+  exit 1
+fi
+if [ "$http_code" -ge 400 ]; then
+  log_error "GitHub API returned HTTP $http_code for releases endpoint"
+  exit 2
+fi
+
+# Extract tag_name entries. Handle pretty or minified JSON. Avoid external jq dependency.
+raw_tags=$(grep -o '"tag_name"[^
+]*' "$response_file" 2>/dev/null | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/' || true)
+
+if [ -z "$raw_tags" ]; then
+  raw_tags=$(tr '{' '\n' < "$response_file" | grep 'tag_name' | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/' || true)
+fi
+
+if [ -z "$raw_tags" ]; then
+  log_error "No tag_name fields found (possibly malformed JSON)"
+  exit 1
+fi
+
+cleaned_versions=()
+for tag in $raw_tags; do
+  v=$(clean_version "$tag")
+  if validate_version_format "$v"; then
+    cleaned_versions+=("$v")
+  fi
+done
+
+# Sort versions (newest last) without relying on sort -V
+if [ ${#cleaned_versions[@]} -gt 0 ]; then
+  # Pad each numeric component to 5 digits for lexical sort reliability
+  padded_tmp="$(mktemp)"; trap 'rm -f "$padded_tmp"' EXIT
+  for v in "${cleaned_versions[@]}"; do
+    IFS='.' read -r a b c <<<"$v"
+    printf '%05d.%05d.%05d %s\n' "$a" "$b" "$c" "$v" >>"$padded_tmp"
+  done
+  # Lexically sort by padded numeric components; newest will be last due to ascending order
+  sorted_versions=$(LC_ALL=C sort "$padded_tmp" | cut -d' ' -f2)
+  rm -f "$padded_tmp"
+  # Join space-separated without trailing space
+  out=""
+  for v in $sorted_versions; do
+    if [ -z "$out" ]; then out="$v"; else out="$out $v"; fi
+  done
+  printf '%s' "$out"
+fi
+echo ""  # newline only

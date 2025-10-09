@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+# ASDF required script: download
+# Phase: Version Installation (Task 4.1)
+# Responsibility: Prepare for downloading a specified version of bash_unit.
+# Further logic (URL construction, download, validation, error handling) added in Tasks 4.2 - 4.5.
+
+set -euo pipefail
+
+# Exit codes:
+# 0 success
+# 1 general error / validation failure
+# 2 network error
+# 3 invalid input
+
+cleanup() {
+  # Remove partial file if present and we did not complete successfully
+  if [ "${DOWNLOAD_IN_PROGRESS:-}" = "1" ] && [ -n "${TARGET_FILE:-}" ] && [ -f "$TARGET_FILE" ]; then
+    rm -f "$TARGET_FILE" || true
+  fi
+}
+trap cleanup EXIT
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=../lib/utils.sh
+if [ -f "$ROOT_DIR/lib/utils.sh" ]; then
+  . "$ROOT_DIR/lib/utils.sh"
+fi
+
+VERSION_RAW="${ASDF_INSTALL_VERSION:-}"
+if [ -z "$VERSION_RAW" ]; then
+  log_error "ASDF_INSTALL_VERSION is not set"
+  exit 3
+fi
+
+VERSION_CLEAN=$(clean_version "$VERSION_RAW")
+if ! validate_version_format "$VERSION_CLEAN"; then
+  log_error "Invalid version format: $VERSION_RAW"
+  exit 3
+fi
+
+DOWNLOAD_URL="https://raw.githubusercontent.com/bash-unit/bash_unit/v${VERSION_CLEAN}/bash_unit"
+
+DOWNLOAD_DIR="${ASDF_DOWNLOAD_PATH:-}"
+if [ -z "$DOWNLOAD_DIR" ]; then
+  log_error "ASDF_DOWNLOAD_PATH is not set"
+  exit 3
+fi
+
+mkdir -p "$DOWNLOAD_DIR"
+TARGET_FILE="$DOWNLOAD_DIR/bash_unit"
+
+DOWNLOAD_IN_PROGRESS=1
+if ! curl -fsSL "$DOWNLOAD_URL" -o "$TARGET_FILE"; then
+  log_error "Failed to download $DOWNLOAD_URL"
+  exit 2
+fi
+
+# Validation: file exists
+if [ ! -f "$TARGET_FILE" ]; then
+  log_error "Downloaded file missing: $TARGET_FILE"
+  exit 1
+fi
+
+# Validation: file begins with bash shebang
+if ! head -n1 "$TARGET_FILE" | grep -Eq '^#!(/usr/bin/env bash|/bin/bash)'; then
+  log_error "Downloaded file missing valid bash shebang"
+  exit 1
+fi
+
+DOWNLOAD_IN_PROGRESS=0
+printf '%s' "$TARGET_FILE"

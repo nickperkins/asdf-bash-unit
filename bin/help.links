@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Outputs relevant links (Title: URL)
+cat <<'EOF'
+GitHub Repository: https://github.com/bash-unit/bash_unit
+Releases: https://github.com/bash-unit/bash_unit/releases
+Documentation: https://github.com/bash-unit/bash_unit#readme
+EOF

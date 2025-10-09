@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# Optional script: latest-stable
+# Phase: Optional Version Management Scripts (Task 5.1)
+# Will fetch latest release tag and output cleaned version (Tasks 5.2 & 5.3).
+# Exit codes:
+# 0 success
+# 1 general failure (parsing / validation)
+# 2 network error
+# 3 invalid input (unexpected version format)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck source=../lib/utils.sh
+if [ -f "$ROOT_DIR/lib/utils.sh" ]; then
+  . "$ROOT_DIR/lib/utils.sh"
+fi
+
+if ! check_network; then
+  log_error "Network connectivity check failed"
+  exit 2
+fi
+
+LATEST_URL=$(get_releases_url latest)
+
+# Build curl options safely (avoid unbound array issues under set -u)
+CURL_OPTS=(-sSL)
+if [ -n "${GITHUB_API_TOKEN:-}" ]; then
+  CURL_OPTS+=(-H "Authorization: Bearer $GITHUB_API_TOKEN")
+fi
+
+response_file="$(mktemp)"; trap 'rm -f "$response_file"' EXIT
+
+if ! curl "${CURL_OPTS[@]}" "$LATEST_URL" -o "$response_file"; then
+  log_error "Failed to fetch latest release data"
+  exit 2
+fi
+
+raw_tag=$(sed -n -E 's/.*"tag_name" *: *"([^"]+)".*/\1/p' "$response_file" | head -n1 || true)
+if [ -z "$raw_tag" ]; then
+  # Fallback: line-based grep then sed
+  raw_tag=$(grep -m1 '"tag_name"' "$response_file" | sed -E 's/.*"tag_name" *: *"([^"]+)".*/\1/' || true)
+fi
+
+if [ -z "$raw_tag" ]; then
+  log_error "Failed to parse tag_name value"
+  exit 1
+fi
+
+if [ -n "${BASH_UNIT_DEBUG:-}" ]; then
+  echo "RAW_TAG=$raw_tag" >&2
+fi
+
+# Clean: remove leading 'v' and whitespace
+cleaned=$(clean_version "$raw_tag")
+if [ -n "${BASH_UNIT_DEBUG:-}" ]; then
+  echo "CLEANED=$cleaned" >&2
+fi
+
+if ! validate_version_format "$cleaned"; then
+  log_error "Latest tag '$raw_tag' not a valid X.Y.Z version after cleaning ('$cleaned')"
+  exit 3
+fi
+
+printf '%s\n' "$cleaned"

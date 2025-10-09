@@ -1,0 +1,105 @@
+# ------------------------------------------------------------
+# Git Ignore for asdf-bash-unit / Bash plugin-style repository
+# ------------------------------------------------------------
+# This project is a collection of shell scripts; keep the ignore
+# list intentionally minimal and focused on local/dev artifacts.
+# Adjust as tooling evolves.
+
+# macOS filesystem noise
+.DS_Store
+.AppleDouble
+.apdisk
+
+# Common editor / IDE settings
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Vim / Emacs / other editor swap & backup files
+*~
+*.swp
+*.swo
+*.swx
+*.bak
+*.orig
+# Emacs
+\#*\#
+.#*
+
+# Shell history (if ever copied locally)
+.bash_history
+.zsh_history
+
+# Logs & traces
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Coverage / test artifacts (if tests added later)
+coverage/
+.coverage*
+
+# Temporary output / scratch / cache directories
+/tmp/
+.cache/
+.cache-*/
+*.tmp
+
+# Build artifacts (in case future tooling compiles/bundles)
+/dist/
+/build/
+/out/
+
+# Archives & packaged releases
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+
+# Core dumps / crash logs
+core
+core.*
+
+# Node / Python / Ruby / etc. (added defensively if aux tooling appears)
+node_modules/
+.env
+.env.*
+!.env.example
+.python-version
+.venv/
+venv/
+.bundle/
+.rbenv-version
+
+# asdf related (keep .tool-versions if intentionally added)
+# Uncomment below if you decide not to commit tool version pinning.
+# .tool-versions
+
+# Git merge / patch artifacts
+*.rej
+*.patch
+
+# Lockfiles (only ignore if not using package managers; keep commented by default)
+# package-lock.json
+# pnpm-lock.yaml
+# yarn.lock
+
+# Tag / ctags
+.tags
+TAGS
+
+# Misc
+*.DS_Store
+Thumbs.db
+
+# Kodik
+.kodik
+.github/chatmodes/kodik*.md
+.github/prompts/kodik*.md
+.github/prompts/generate-*.prompt.md
+
+# End of file
