@@ -63,11 +63,14 @@ For development (optional):
   ```
 3. Set the version (choose one)
    ```bash
-   # Project-local
-   asdf local bash-unit <version>
+   # In current directory (.tool-versions in cwd)
+   asdf set bash-unit <version>
 
-   # Global (all shells)
-   asdf global bash-unit <version>
+   # In $HOME (.tool-versions in home)
+   asdf set -u bash-unit <version>
+
+   # In nearest parent .tool-versions
+   asdf set -p bash-unit <version>
    ```
 4. Optional: avoid API rate limits for version discovery
    - Some commands (e.g., [bin/list-all](bin/list-all), [bin/latest-stable](bin/latest-stable)) may query GitHub.
@@ -90,8 +93,14 @@ For development (optional):
   ```
 - Switch versions
   ```bash
-  asdf local bash-unit <version>   # in a project
-  asdf global bash-unit <version>  # for your user
+  # set in current directory (.tool-versions)
+  asdf set bash-unit <version>
+
+  # set in $HOME (.tool-versions in home)
+  asdf set -u bash-unit <version>
+
+  # set in nearest parent .tool-versions
+  asdf set -p bash-unit <version>
   ```
 - Verify the shim and path
   ```bash
